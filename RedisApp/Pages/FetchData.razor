@@ -3,18 +3,30 @@
 <PageTitle>Weather forecast</PageTitle>
 
 @using RedisApp.Data
+@using RedisApp.Extensions
 @inject WeatherForecastService ForecastService
+@inject IDistributedCache cache
 
 <h1>Weather forecast</h1>
 
 <p>This component demonstrates fetching data from a service.</p>
 
-@if (forecasts == null)
+
+<button class="btn btn-primary" @onclick="LoadForecast">Load Forecast</button>
+
+@if (forecasts is null && loadLocations == "")
+{
+    <p><em>Click the button to load the forecast</em></p>    
+}
+else @if (forecasts is null)
 {
     <p><em>Loading...</em></p>
 }
 else
 {
+
+    <div class="h3 @isCacheData">@loadLocations</div>
+
     <table class="table">
         <thead>
             <tr>
@@ -41,8 +53,32 @@ else
 @code {
     private WeatherForecast[]? forecasts;
 
-    protected override async Task OnInitializedAsync()
+    private string loadLocations = "";
+    private string isCacheData = "";
+
+    private async Task LoadForecast() 
     {
-        forecasts = await ForecastService.GetForecastAsync(DateTime.Now);
+        forecasts = null;
+        loadLocations = null;
+
+
+        string recordKey = "WeatherForecast_" + DateTime.Now.ToString("yyyyMMdd_hhmm");
+
+        forecasts = await cache.GetRecordAsync<WeatherForecast[]>(recordKey);
+
+        if (forecasts is null)
+        {
+            forecasts = await ForecastService.GetForecastAsync(DateTime.Now);
+
+            loadLocations = $"Loaded from API at {DateTime.Now}";
+            isCacheData = "";
+
+            await cache.SetRecordAsync(recordKey, forecasts);
+        }
+        else
+        {
+            loadLocations = $"Loaded from Cache at {DateTime.Now}";
+            isCacheData = "text-danger";
+        }
     }
 }
